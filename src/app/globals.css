@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  /* iOS safe-area helpers */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background-color: #2a1a0a;
+  color: #fdf5e6;
+  min-height: 100%;
+  /* Prevent iOS Safari rubber-band overscroll showing white. */
+  overscroll-behavior-y: contain;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* iOS Safari zooms in on focus if input font-size < 16px. Force 16px. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* A subtle textured radial behind the page for that "premium" feel. */
+body {
+  background-image:
+    radial-gradient(1200px 600px at 50% -10%, rgba(200, 168, 78, 0.10), transparent 60%),
+    radial-gradient(800px 400px at 100% 100%, rgba(92, 58, 30, 0.55), transparent 70%),
+    linear-gradient(180deg, #2a1a0a 0%, #1c1006 100%);
+  background-attachment: fixed;
+}
+
+@layer components {
+  .container-narrow {
+    @apply max-w-4xl mx-auto px-4 sm:px-6;
+  }
+  .card {
+    @apply rounded-xl border border-brand-gold/20 bg-brand-warm/30 backdrop-blur-sm;
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center rounded-md bg-brand-gold px-4 py-3
+           font-semibold text-brand-dark hover:bg-brand-cream transition min-h-[44px]
+           focus:outline-none focus:ring-2 focus:ring-brand-gold focus:ring-offset-2
+           focus:ring-offset-brand-dark disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-md border border-brand-gold/40
+           px-4 py-3 font-medium text-brand-cream hover:bg-brand-gold/10 transition min-h-[44px];
+  }
+  .input {
+    @apply w-full rounded-md border border-brand-gold/30 bg-brand-dark/70 px-3 py-2.5
+           text-brand-cream placeholder:text-brand-cream/40 min-h-[44px]
+           focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-brand-gold;
+  }
+  .label {
+    @apply block text-xs uppercase tracking-[0.18em] text-brand-gold/80 mb-1.5 font-semibold;
+  }
+  .h-display {
+    @apply font-display uppercase tracking-[0.18em];
+  }
+  .h-serif {
+    @apply font-serif;
+  }
+  .gold-rule {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-brand-gold/60 to-transparent;
+  }
+}
+
+/* Respect iPhone home-indicator inset on the fixed footer area. */
+footer {
+  padding-bottom: max(2rem, var(--safe-bottom));
+}
+
+/* Smooth, native-feeling horizontal scrolling for wide tables. */
+.scroll-x-touch {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
