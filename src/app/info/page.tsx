@@ -150,8 +150,8 @@ export default async function InfoPage() {
         </p>
         <p className="font-serif text-brand-cream/90 mb-3">
           <span className="text-brand-gold font-semibold">Starting Indexes.</span>{" "}
-          Current GHIN index pulled May 20. Non-GHIN players (John Glade,
-          Eric Gottman) were assigned indexes before Round 1.
+          Current GHIN index pulled May 20. Eric Gottman (no GHIN) was
+          assigned an index before Round 1.
         </p>
         <p className="font-serif text-brand-cream/90 mb-3">
           <span className="text-brand-gold font-semibold">The Rule.</span> After
