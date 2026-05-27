@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RoundScorecard } from "@/components/RoundScorecard";
 import { getAll } from "@/lib/data";
 import { fmtDate, fmtIndex, money } from "@/lib/format";
@@ -5,7 +6,11 @@ import { totalSkinsByPlayer } from "@/lib/skins";
 
 export const dynamic = "force-dynamic";
 
-export default async function DailyPage() {
+export default async function DailyPage({
+  searchParams,
+}: {
+  searchParams?: { round?: string };
+}) {
   const {
     players,
     courses,
@@ -25,19 +30,78 @@ export default async function DailyPage() {
 
   const sortedRounds = [...rounds].sort((a, b) => a.round_number - b.round_number);
 
+  // Decide which round to show.
+  //   1. ?round=N if valid
+  //   2. else, the most recent "complete" round
+  //   3. else, R1
+  const requested = Number(searchParams?.round);
+  const validRequested =
+    Number.isInteger(requested) &&
+    sortedRounds.some((r) => r.round_number === requested)
+      ? requested
+      : null;
+  const lastComplete = [...sortedRounds]
+    .reverse()
+    .find((r) => r.status === "complete");
+  const activeRoundNumber =
+    validRequested ?? lastComplete?.round_number ?? sortedRounds[0]?.round_number ?? 1;
+  const round = sortedRounds.find((r) => r.round_number === activeRoundNumber);
+
   return (
     <div className="container-narrow pt-8 pb-12">
-      <header className="mb-6">
+      <header className="mb-5">
         <h1 className="h-display text-2xl sm:text-3xl text-brand-cream font-bold">
           Daily Results
         </h1>
         <p className="text-sm text-brand-cream/70 mt-1">
-          Round-by-round breakdown of the King Kong Cup.
+          Pick a round to see the leaderboard, skins, scorecard, and any
+          handicap adjustments from that day.
         </p>
       </header>
 
-      <div className="space-y-5">
-        {sortedRounds.map((round) => {
+      {/* Round picker */}
+      <nav className="mb-5 flex flex-wrap gap-2">
+        {sortedRounds.map((r) => {
+          const active = r.round_number === activeRoundNumber;
+          const isComplete = r.status === "complete";
+          return (
+            <Link
+              key={r.id}
+              href={`/daily?round=${r.round_number}`}
+              scroll={false}
+              className={
+                "px-3 py-2 rounded-md text-sm border transition flex items-center gap-2 " +
+                (active
+                  ? "bg-brand-gold text-brand-dark border-brand-gold font-semibold"
+                  : "border-brand-gold/30 text-brand-cream/85 hover:bg-brand-gold/10")
+              }
+            >
+              <span className="uppercase tracking-wider text-xs">
+                R{r.round_number}
+              </span>
+              <span
+                className={
+                  "w-1.5 h-1.5 rounded-full " +
+                  (isComplete
+                    ? active
+                      ? "bg-brand-dark"
+                      : "bg-emerald-400"
+                    : active
+                      ? "bg-brand-dark/40"
+                      : "bg-brand-cream/30")
+                }
+              />
+            </Link>
+          );
+        })}
+      </nav>
+
+      {!round ? (
+        <div className="card p-8 text-center font-serif italic text-brand-cream/60">
+          No rounds yet.
+        </div>
+      ) : (
+        (() => {
           const course = courseById.get(round.course_id);
           const tee = round.tee_id ? teeById.get(round.tee_id) : undefined;
           const courseHoles = holes
@@ -266,8 +330,8 @@ export default async function DailyPage() {
               )}
             </section>
           );
-        })}
-      </div>
+        })()
+      )}
     </div>
   );
 }
