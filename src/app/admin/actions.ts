@@ -33,6 +33,7 @@ function revalidateAll() {
   revalidatePath("/");
   revalidatePath("/leaderboard");
   revalidatePath("/daily");
+  revalidatePath("/pairings");
   revalidatePath("/skins");
   revalidatePath("/bonus");
   revalidatePath("/info");
@@ -116,9 +117,9 @@ export async function seedDatabaseAction(): Promise<{
       { name: "Dave Cash", starting_index: 8.2, current_index: 8.2, ghin: "51511", sort_order: 5 },
       { name: "Jarrod Robson", starting_index: 11.4, current_index: 11.4, ghin: "732201", sort_order: 6 },
       { name: "Tae Kong", starting_index: 12.3, current_index: 12.3, ghin: "1902696", sort_order: 7 },
-      { name: "Rob Down", starting_index: 12.6, current_index: 12.6, ghin: "1331159", sort_order: 8 },
-      { name: "Brandt Wibel", starting_index: 16.0, current_index: 16.0, ghin: "2316198", sort_order: 9 },
-      { name: "Craig Jeffries", starting_index: 18.0, current_index: 18.0, ghin: null, sort_order: 10 },
+      { name: "Rob Downey", starting_index: 12.6, current_index: 12.6, ghin: "1331159", sort_order: 8 },
+      { name: "Brandt Wible", starting_index: 16.0, current_index: 16.0, ghin: "2316198", sort_order: 9 },
+      { name: "John Glade", starting_index: 8.0, current_index: 8.0, ghin: null, sort_order: 10 },
       { name: "Bill Keith", starting_index: 21.0, current_index: 21.0, ghin: "2183718", sort_order: 11 },
       { name: "Eric Gottman", starting_index: 22.0, current_index: 22.0, ghin: null, sort_order: 12 },
     ];

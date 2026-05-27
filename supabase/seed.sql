@@ -15,9 +15,9 @@ values
   ('Dave Cash',       8.2,  8.2,  '51511',     5),
   ('Jarrod Robson',   11.4, 11.4, '732201',    6),
   ('Tae Kong',        12.3, 12.3, '1902696',   7),
-  ('Rob Downey',        12.6, 12.6, '1331159',   8),
-  ('Brandt Wibel',    16.0, 16.0, '2316198',   9),
-  ('Craig Jeffries',  18.0, 18.0, null,        10),
+  ('Rob Downey',      12.6, 12.6, '1331159',   8),
+  ('Brandt Wible',    16.0, 16.0, '2316198',   9),
+  ('John Glade',      8.0,  8.0,  null,        10),
   ('Bill Keith',      21.0, 21.0, '2183718',   11),
   ('Eric Gottman',    22.0, 22.0, null,        12)
 on conflict do nothing;
