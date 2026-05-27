@@ -845,12 +845,17 @@ export async function saveRoundAction(input: {
 
   const playedCount = scoreInserts.filter((r) => !r.did_not_play).length;
   const status = playedCount > 0 ? "complete" : "pending";
+  const prevStatus = round.status;
   await sb.from("rounds").update({ status }).eq("id", input.roundId);
 
-  // Always recompute — this rebuilds the entire adjustment history from
-  // the current set of scores, so deleting/clearing a score correctly
-  // reverts indexes and strips stale adjustment rows.
-  await recomputeHandicapAdjustments();
+  // Handicap adjustments only react to *complete* rounds (rows in `scores`
+  // with a non-null gross/differential). Auto-save during partial entry
+  // produces nothing for the adjustment chain to chew on, so skip the
+  // expensive rebuild unless the round either was complete (and might
+  // need its prior adjustments revoked) or just became complete.
+  if (prevStatus === "complete" || status === "complete") {
+    await recomputeHandicapAdjustments();
+  }
   await recomputeSkinsForRound(input.roundId);
   revalidateAll();
   return { ok: true };
