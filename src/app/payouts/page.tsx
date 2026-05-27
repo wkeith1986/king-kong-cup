@@ -11,6 +11,7 @@ import {
 import { computeLeaderboard } from "@/lib/scoring";
 import { totalSkinsByPlayer } from "@/lib/skins";
 import type { Player } from "@/lib/types";
+import { EntriesTracker } from "./EntriesTracker";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +148,8 @@ export default async function PayoutsPage() {
           final once Round 5 is in the books.
         </p>
       </header>
+
+      <EntriesTracker players={players} />
 
       {/* Pot summary */}
       <section className="card p-5 mb-5">

@@ -426,6 +426,25 @@ export async function updatePlayerAction(input: {
   return { ok: true };
 }
 
+/**
+ * Mark a player's $500 buy-in as paid (or un-mark). Used by the Entries
+ * tracker on /payouts. Requires admin auth so randos can't toggle others.
+ */
+export async function setPlayerPaidAction(input: {
+  playerId: string;
+  paid: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  requireAdmin();
+  const sb = getServiceClient();
+  const { error } = await sb
+    .from("players")
+    .update({ paid_entry: input.paid })
+    .eq("id", input.playerId);
+  if (error) return { ok: false, error: error.message };
+  revalidateAll();
+  return { ok: true };
+}
+
 export async function deletePlayerAction(input: {
   playerId: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {

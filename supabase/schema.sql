@@ -12,8 +12,12 @@ create table if not exists players (
   current_index numeric(4,1) not null,
   ghin text,
   sort_order int not null default 0,
+  paid_entry boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+-- Migration: add paid_entry on existing databases that pre-date it.
+alter table players add column if not exists paid_entry boolean not null default false;
 
 -- Courses (5 rounds, 4 distinct courses since Black Desert hosts rounds 4 & 5)
 create table if not exists courses (

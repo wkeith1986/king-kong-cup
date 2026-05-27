@@ -5,6 +5,7 @@ export type Player = {
   current_index: number;
   ghin: string | null;
   sort_order: number;
+  paid_entry: boolean;
 };
 
 export type Course = {
