@@ -56,9 +56,9 @@ const STATIC_PAIRINGS: Record<
     { label: "Group 3", lastNames: ["Hoffmann", "Day", "Downey", "Robb"], marquee: true },
   ],
   2: [
-    { label: "Group 1", lastNames: ["Kong", "Robertson", "Downey", "Gottman"], marquee: true },
+    { label: "Group 1", lastNames: ["Kong", "Robertson", "Downey", "Robb"], marquee: true },
     { label: "Group 2", lastNames: ["Hoffmann", "Glade", "Cash", "Keith"], marquee: true },
-    { label: "Group 3", lastNames: ["Robb", "Day", "Robson", "Wible"] },
+    { label: "Group 3", lastNames: ["Gottman", "Day", "Robson", "Wible"] },
   ],
   3: [
     { label: "Group 1", lastNames: ["Robb", "Cash", "Robson", "Gottman"] },
