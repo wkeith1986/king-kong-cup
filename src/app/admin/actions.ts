@@ -19,7 +19,6 @@ import {
 import { computeSkins } from "@/lib/skins";
 import {
   computeHandicapAdjustment,
-  differentialsForPlayer,
 } from "@/lib/handicap";
 import type { Hole, Player, Round, Score, Tee } from "@/lib/types";
 
@@ -420,6 +419,8 @@ export async function updatePlayerAction(input: {
     await recomputeNetToParForRound(rid);
     await recomputeSkinsForRound(rid);
   }
+  // Starting-index change cascades into the adjustment chain; rebuild it.
+  await recomputeHandicapAdjustments();
 
   revalidateAll();
   return { ok: true };
@@ -446,6 +447,9 @@ export async function deletePlayerAction(input: {
   for (const rid of roundIds) {
     await recomputeSkinsForRound(rid);
   }
+  // Cascade also nuked their scores and adjustments; rebuild so other
+  // players' adjustment history stays clean.
+  await recomputeHandicapAdjustments();
   revalidateAll();
   return { ok: true };
 }
@@ -843,9 +847,10 @@ export async function saveRoundAction(input: {
   const status = playedCount > 0 ? "complete" : "pending";
   await sb.from("rounds").update({ status }).eq("id", input.roundId);
 
-  if (status === "complete") {
-    await recomputeHandicapAdjustments(round.round_number);
-  }
+  // Always recompute — this rebuilds the entire adjustment history from
+  // the current set of scores, so deleting/clearing a score correctly
+  // reverts indexes and strips stale adjustment rows.
+  await recomputeHandicapAdjustments();
   await recomputeSkinsForRound(input.roundId);
   revalidateAll();
   return { ok: true };
@@ -908,37 +913,99 @@ async function recomputeSkinsForRound(roundId: string) {
 // HANDICAP ADJUSTMENT
 // ============================================================================
 
-async function recomputeHandicapAdjustments(afterRound: number) {
+/**
+ * Rebuild every player's current_index and the handicap_adjustments history
+ * from scratch, based on the current state of `scores`. Called whenever a
+ * round is saved, reset, or a player is edited/deleted — so any score
+ * deletion correctly reverts indexes and removes stranded adjustment rows.
+ *
+ * Steps:
+ *   1. Wipe all handicap_adjustments and reset every player's current_index
+ *      to their starting_index.
+ *   2. Walk rounds in order (1 → 5). After each *completed* round, recompute
+ *      each player's cumulative differential average. If it warrants an
+ *      adjustment (5+ strokes better than starting), apply it and emit one
+ *      adjustment row stamped with that round number.
+ *
+ * The argument is ignored — kept for backward compatibility with callers
+ * that used to pass `round.round_number`.
+ */
+async function recomputeHandicapAdjustments(_afterRound?: number): Promise<void> {
+  void _afterRound;
   const sb = getServiceClient();
-  const [{ data: players }, { data: scores }] = await Promise.all([
-    sb.from("players").select("*"),
-    sb.from("scores").select("*"),
-  ]);
-  if (!players) return;
 
-  for (const player of players as Player[]) {
-    const diffs = differentialsForPlayer((scores ?? []) as Score[], player.id);
-    if (diffs.length === 0) continue;
-    const adj = computeHandicapAdjustment({
-      startingIndex: Number(player.starting_index),
-      currentIndex: Number(player.current_index),
-      differentials: diffs,
-    });
-    if (!adj) continue;
+  const [{ data: playersRaw }, { data: scoresRaw }, { data: roundsRaw }] =
+    await Promise.all([
+      sb.from("players").select("*"),
+      sb.from("scores").select("*"),
+      sb.from("rounds").select("*").order("round_number"),
+    ]);
+  if (!playersRaw || !roundsRaw) return;
 
-    await sb
-      .from("players")
-      .update({ current_index: adj.newIndex })
-      .eq("id", player.id);
+  const allPlayers = playersRaw as Player[];
+  const allScores = (scoresRaw ?? []) as Score[];
+  const allRounds = roundsRaw as Round[];
 
-    await sb.from("handicap_adjustments").insert({
-      player_id: player.id,
-      after_round: afterRound,
-      rounds_counted: adj.roundsCounted,
-      avg_differential: adj.avgDifferential,
-      old_index: player.current_index,
-      new_index: adj.newIndex,
-    });
+  // 1. Wipe adjustments + reset every player to their starting index.
+  await sb
+    .from("handicap_adjustments")
+    .delete()
+    .neq("id", "00000000-0000-0000-0000-000000000000");
+  for (const p of allPlayers) {
+    const starting = Number(p.starting_index);
+    if (Number(p.current_index) !== starting) {
+      await sb
+        .from("players")
+        .update({ current_index: starting })
+        .eq("id", p.id);
+    }
+  }
+
+  // 2. Walk completed rounds in order, re-deriving each player's index.
+  const roundNumberById = new Map(allRounds.map((r) => [r.id, r.round_number]));
+  const runningIndex = new Map<string, number>(
+    allPlayers.map((p) => [p.id, Number(p.starting_index)]),
+  );
+
+  for (const round of allRounds.filter((r) => r.status === "complete")) {
+    for (const p of allPlayers) {
+      const diffs = allScores
+        .filter(
+          (s) =>
+            s.player_id === p.id &&
+            s.differential != null &&
+            !s.did_not_play,
+        )
+        .filter((s) => {
+          const rn = roundNumberById.get(s.round_id);
+          return rn != null && rn <= round.round_number;
+        })
+        .map((s) => Number(s.differential));
+
+      if (diffs.length === 0) continue;
+
+      const before = runningIndex.get(p.id) ?? Number(p.starting_index);
+      const adj = computeHandicapAdjustment({
+        startingIndex: Number(p.starting_index),
+        currentIndex: before,
+        differentials: diffs,
+      });
+      if (!adj) continue;
+
+      runningIndex.set(p.id, adj.newIndex);
+      await sb
+        .from("players")
+        .update({ current_index: adj.newIndex })
+        .eq("id", p.id);
+      await sb.from("handicap_adjustments").insert({
+        player_id: p.id,
+        after_round: round.round_number,
+        rounds_counted: adj.roundsCounted,
+        avg_differential: adj.avgDifferential,
+        old_index: before,
+        new_index: adj.newIndex,
+      });
+    }
   }
 }
 
@@ -974,18 +1041,10 @@ export async function resetRoundAction(input: {
   await sb.from("hole_scores").delete().eq("round_id", input.roundId);
   await sb.from("skins").delete().eq("round_id", input.roundId);
   await sb.from("rounds").update({ status: "pending" }).eq("id", input.roundId);
+  // Recompute handles all the bookkeeping: clears stranded adjustment rows,
+  // restores indexes for affected players, recomputes skin carryout chain.
   await recomputeSkinsForRound(input.roundId);
-  // Recompute handicaps from scratch by restoring all to starting indexes,
-  // then re-applying based on remaining scores.
-  await sb.from("handicap_adjustments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-  const { data: players } = await sb.from("players").select("*");
-  for (const p of (players ?? []) as Player[]) {
-    await sb
-      .from("players")
-      .update({ current_index: p.starting_index })
-      .eq("id", p.id);
-  }
-  await recomputeHandicapAdjustments(0);
+  await recomputeHandicapAdjustments();
   revalidateAll();
   return { ok: true };
 }
