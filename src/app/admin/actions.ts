@@ -536,6 +536,19 @@ export async function updateTeeAction(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   requireAdmin();
   const sb = getServiceClient();
+
+  // Detect a slope/rating change so we know whether to recompute downstream
+  // (every score / hole_score / skin / handicap derives from these).
+  const { data: existingTee } = await sb
+    .from("tees")
+    .select("rating,slope")
+    .eq("id", input.teeId)
+    .single();
+  const slopeRatingChanged =
+    !existingTee ||
+    Number(existingTee.slope) !== Number(input.slope) ||
+    Number(existingTee.rating) !== Number(input.rating);
+
   const { error } = await sb
     .from("tees")
     .update({
@@ -546,8 +559,148 @@ export async function updateTeeAction(input: {
     })
     .eq("id", input.teeId);
   if (error) return { ok: false, error: error.message };
+
+  if (slopeRatingChanged) {
+    // Every round currently pointed at this tee has stale CH/net/diff.
+    // Re-derive scores rows from hole_scores grosses, then refresh skins +
+    // the full handicap chain.
+    const { data: affectedRounds } = await sb
+      .from("rounds")
+      .select("id")
+      .eq("tee_id", input.teeId);
+    for (const r of (affectedRounds ?? []) as Array<{ id: string }>) {
+      await rebuildScoresForRound(r.id);
+      await recomputeNetToParForRound(r.id);
+      await recomputeSkinsForRound(r.id);
+    }
+    await recomputeHandicapAdjustments();
+  }
+
   revalidateAll();
   return { ok: true };
+}
+
+/**
+ * Recompute the `scores` row for every player in a round from their stored
+ * per-hole grosses + the round's current tee. Only fires for players with a
+ * complete 18-hole card. Used when something upstream (tee slope/rating, par,
+ * SI) changes and the stored gross/CH/net/differential need refreshing.
+ */
+async function rebuildScoresForRound(roundId: string): Promise<void> {
+  const sb = getServiceClient();
+  const [{ data: round }, { data: holeScoresRaw }, { data: players }] =
+    await Promise.all([
+      sb.from("rounds").select("*").eq("id", roundId).single(),
+      sb.from("hole_scores").select("*").eq("round_id", roundId),
+      sb.from("players").select("*"),
+    ]);
+  if (!round || !players) return;
+  if (!round.tee_id) return;
+
+  const { data: tee } = await sb
+    .from("tees")
+    .select("*")
+    .eq("id", round.tee_id)
+    .single();
+  if (!tee) return;
+  const teeRow = tee as Tee;
+
+  const { data: holesData } = await sb
+    .from("holes")
+    .select("*")
+    .eq("course_id", round.course_id);
+  const holeByNumber = new Map(
+    ((holesData ?? []) as Hole[]).map((h) => [h.hole_number, h]),
+  );
+
+  // Group hole_scores by player.
+  const grossesByPlayer = new Map<string, Map<number, number>>();
+  for (const hs of (holeScoresRaw ?? []) as Array<{
+    player_id: string;
+    hole_number: number;
+    gross: number | null;
+  }>) {
+    if (hs.gross == null) continue;
+    if (!grossesByPlayer.has(hs.player_id))
+      grossesByPlayer.set(hs.player_id, new Map());
+    grossesByPlayer.get(hs.player_id)!.set(hs.hole_number, hs.gross);
+  }
+
+  // Preserve existing DNP markers; rebuild only the non-DNP played rows.
+  const { data: existingScores } = await sb
+    .from("scores")
+    .select("player_id,did_not_play")
+    .eq("round_id", roundId);
+  const dnpSet = new Set(
+    ((existingScores ?? []) as Array<{
+      player_id: string;
+      did_not_play: boolean;
+    }>)
+      .filter((s) => s.did_not_play)
+      .map((s) => s.player_id),
+  );
+
+  await sb.from("scores").delete().eq("round_id", roundId);
+
+  const inserts: Array<{
+    round_id: string;
+    player_id: string;
+    gross: number | null;
+    course_handicap: number | null;
+    net: number | null;
+    differential: number | null;
+    did_not_play: boolean;
+  }> = [];
+
+  for (const p of players as Player[]) {
+    if (dnpSet.has(p.id)) {
+      inserts.push({
+        round_id: roundId,
+        player_id: p.id,
+        gross: null,
+        course_handicap: null,
+        net: null,
+        differential: null,
+        did_not_play: true,
+      });
+      continue;
+    }
+    const playerHoles = grossesByPlayer.get(p.id);
+    if (!playerHoles || playerHoles.size !== 18) continue;
+
+    const ch = courseHandicap(Number(p.current_index), teeRow.slope);
+    let adjustedSum = 0;
+    for (const [holeNumber, gross] of playerHoles) {
+      const hole = holeByNumber.get(holeNumber);
+      const par = hole?.par ?? 4;
+      const si = hole?.stroke_index ?? holeNumber;
+      const strokes = strokesReceived(ch, si);
+      adjustedSum += adjustedGross(gross, par, strokes);
+    }
+    const computed = buildScoreRow({
+      index: Number(p.current_index),
+      gross: adjustedSum,
+      tee: { rating: Number(teeRow.rating), slope: teeRow.slope },
+    });
+    inserts.push({
+      round_id: roundId,
+      player_id: p.id,
+      gross: adjustedSum,
+      course_handicap: computed.course_handicap,
+      net: computed.net,
+      differential: computed.differential,
+      did_not_play: false,
+    });
+  }
+
+  if (inserts.length) {
+    await sb.from("scores").insert(inserts);
+  }
+  const playedCount = inserts.filter((r) => !r.did_not_play).length;
+  await sb
+    .from("rounds")
+    .update({ status: playedCount > 0 ? "complete" : "pending" })
+    .eq("id", roundId);
 }
 
 export async function deleteTeeAction(input: {
@@ -605,22 +758,27 @@ export async function upsertHolesAction(input: {
     .upsert(rows, { onConflict: "course_id,hole_number" });
   if (error) return { ok: false, error: error.message };
 
-  // Hole edits change strokes-received → recompute skins for any rounds on
-  // this course that have hole_scores entered.
+  // Hole edits change par + strokes-received → every downstream number on
+  // an affected round is stale. Rebuild scores (adjusted gross), net-to-par
+  // per hole, skins, and the handicap chain.
   const { data: rounds } = await sb
     .from("rounds")
     .select("id")
     .eq("course_id", input.courseId);
+  let anyComplete = false;
   for (const r of rounds ?? []) {
     const { count } = await sb
       .from("hole_scores")
       .select("*", { count: "exact", head: true })
       .eq("round_id", r.id);
     if ((count ?? 0) > 0) {
+      await rebuildScoresForRound(r.id);
       await recomputeNetToParForRound(r.id);
       await recomputeSkinsForRound(r.id);
+      anyComplete = true;
     }
   }
+  if (anyComplete) await recomputeHandicapAdjustments();
 
   revalidateAll();
   return { ok: true };
