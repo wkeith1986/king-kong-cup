@@ -1,6 +1,6 @@
 import { RoundScorecard } from "@/components/RoundScorecard";
 import { getAll } from "@/lib/data";
-import { fmtDate, money } from "@/lib/format";
+import { fmtDate, fmtIndex, money } from "@/lib/format";
 import { totalSkinsByPlayer } from "@/lib/skins";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ export default async function DailyPage() {
     holeScores,
     skins,
     skinPots,
+    adjustments,
   } = await getAll();
   const playerById = new Map(players.map((p) => [p.id, p]));
   const courseById = new Map(courses.map((c) => [c.id, c]));
@@ -215,6 +216,52 @@ export default async function DailyPage() {
                     skins={roundSkins}
                     skinValue={skinValue}
                   />
+
+                  {(() => {
+                    const roundAdjustments = adjustments.filter(
+                      (a) => a.after_round === round.round_number,
+                    );
+                    if (roundAdjustments.length === 0) return null;
+                    return (
+                      <div className="mt-4 rounded-md border border-brand-gold/40 bg-brand-gold/10 p-4">
+                        <div className="text-[10px] uppercase tracking-widest text-brand-gold mb-2 flex items-center gap-1.5">
+                          <span>▼</span>
+                          Handicap Adjustments After This Round
+                        </div>
+                        <ul className="space-y-1 text-sm">
+                          {roundAdjustments.map((a) => {
+                            const p = playerById.get(a.player_id);
+                            return (
+                              <li
+                                key={a.id}
+                                className="flex items-baseline justify-between gap-3"
+                              >
+                                <span className="font-semibold text-brand-cream">
+                                  {p?.name ?? "—"}
+                                </span>
+                                <span className="text-xs text-brand-cream/60">
+                                  avg diff {a.avg_differential} over{" "}
+                                  {a.rounds_counted} rd
+                                  {a.rounds_counted === 1 ? "" : "s"}
+                                </span>
+                                <span className="tabular-nums text-sm">
+                                  <span className="text-brand-cream/60">
+                                    {fmtIndex(a.old_index)}
+                                  </span>
+                                  <span className="text-brand-gold mx-1.5">
+                                    →
+                                  </span>
+                                  <span className="text-brand-gold font-bold">
+                                    {fmtIndex(a.new_index)}
+                                  </span>
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </section>

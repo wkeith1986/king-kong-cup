@@ -115,13 +115,26 @@ export function LeaderboardTable({
                     <td className="px-3 py-3">
                       <div className="font-semibold">{row.player.name}</div>
                     </td>
-                    <td className="px-3 py-3 text-brand-cream/85">
-                      {fmtIndex(row.player.current_index)}
+                    <td className="px-3 py-3 text-brand-cream/85 whitespace-nowrap">
+                      <span
+                        className={
+                          showAdjustedIndex &&
+                          row.player.current_index !==
+                            row.player.starting_index
+                            ? "text-brand-gold font-semibold"
+                            : ""
+                        }
+                      >
+                        {fmtIndex(row.player.current_index)}
+                      </span>
                       {showAdjustedIndex &&
                         row.player.current_index !==
                           row.player.starting_index && (
-                          <span className="text-xs text-brand-cream/50 ml-1">
-                            ({fmtIndex(row.player.starting_index)})
+                          <span
+                            className="ml-1.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tabular-nums bg-brand-gold/20 text-brand-gold ring-1 ring-brand-gold/40"
+                            title={`Index adjusted from ${fmtIndex(row.player.starting_index)} to ${fmtIndex(row.player.current_index)}`}
+                          >
+                            ▼ {(row.player.starting_index - row.player.current_index).toFixed(1)}
                           </span>
                         )}
                     </td>
@@ -201,12 +214,25 @@ function MobileCard({
           </div>
           <div>
             <div className="font-semibold leading-tight">{row.player.name}</div>
-            <div className="text-xs text-brand-cream/60 mt-0.5">
-              Index {fmtIndex(row.player.current_index)}
+            <div className="text-xs text-brand-cream/60 mt-0.5 flex items-center gap-1.5 flex-wrap">
+              <span>
+                Index{" "}
+                <span
+                  className={
+                    showAdjustedIndex &&
+                    row.player.current_index !== row.player.starting_index
+                      ? "text-brand-gold font-semibold"
+                      : ""
+                  }
+                >
+                  {fmtIndex(row.player.current_index)}
+                </span>
+              </span>
               {showAdjustedIndex &&
                 row.player.current_index !== row.player.starting_index && (
-                  <span className="ml-1">
-                    (was {fmtIndex(row.player.starting_index)})
+                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tabular-nums bg-brand-gold/20 text-brand-gold ring-1 ring-brand-gold/40">
+                    ▼ {(row.player.starting_index - row.player.current_index).toFixed(1)}{" "}
+                    from {fmtIndex(row.player.starting_index)}
                   </span>
                 )}
             </div>
