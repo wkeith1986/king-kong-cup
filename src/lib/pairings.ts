@@ -17,15 +17,27 @@ export type PairingGroup = {
   marquee?: boolean; // highlight the headliner group
 };
 
-// Last-name → player-id lookup helper.
+// Known last-name spelling variants — pairings reference one spelling, the
+// DB might hold another. Keep variants symmetrical so it doesn't matter
+// which one you write in either place.
+const LAST_NAME_ALIASES: Record<string, string[]> = {
+  wible: ["wible", "wibel"],
+  wibel: ["wibel", "wible"],
+};
+
+// Last-name → player-id lookup helper. Tolerant of known spelling variants.
 function idByLastName(players: Player[], lastName: string): string | null {
   const lc = lastName.toLowerCase();
-  const match = players.find((p) => {
-    const parts = p.name.split(/\s+/);
-    const ln = parts[parts.length - 1].toLowerCase();
-    return ln === lc;
-  });
-  return match?.id ?? null;
+  const variants = LAST_NAME_ALIASES[lc] ?? [lc];
+  for (const v of variants) {
+    const match = players.find((p) => {
+      const parts = p.name.split(/\s+/);
+      const ln = parts[parts.length - 1].toLowerCase();
+      return ln === v;
+    });
+    if (match) return match.id;
+  }
+  return null;
 }
 
 function lookupGroup(players: Player[], lastNames: string[]): string[] {
