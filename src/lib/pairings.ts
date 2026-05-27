@@ -51,9 +51,9 @@ const STATIC_PAIRINGS: Record<
   Array<{ label: string; lastNames: string[]; marquee?: boolean }>
 > = {
   1: [
-    { label: "Group 1", lastNames: ["Kong", "Robb", "Cash", "Keith"], marquee: true },
+    { label: "Group 1", lastNames: ["Kong", "Gottman", "Cash", "Keith"], marquee: true },
     { label: "Group 2", lastNames: ["Robertson", "Glade", "Robson", "Wible"] },
-    { label: "Group 3", lastNames: ["Hoffmann", "Day", "Downey", "Gottman"], marquee: true },
+    { label: "Group 3", lastNames: ["Hoffmann", "Day", "Downey", "Robb"], marquee: true },
   ],
   2: [
     { label: "Group 1", lastNames: ["Kong", "Robertson", "Downey", "Gottman"], marquee: true },
