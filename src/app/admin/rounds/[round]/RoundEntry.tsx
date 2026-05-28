@@ -122,6 +122,8 @@ export function RoundEntry({
         rawGross: number;
         adjGross: number;
         cappedHoles: number;
+        frontAdj: number | null;
+        backAdj: number | null;
         ch: number | null;
         net: number | null;
       }
@@ -133,6 +135,10 @@ export function RoundEntry({
       let rawGross = 0;
       let adjGross = 0;
       let cappedHoles = 0;
+      let frontAdj = 0;
+      let frontEntered = 0;
+      let backAdj = 0;
+      let backEntered = 0;
       for (let i = 0; i < 18; i++) {
         const v = arr[i];
         if (v == null || !Number.isFinite(v) || v <= 0) continue;
@@ -145,15 +151,66 @@ export function RoundEntry({
         rawGross += g;
         adjGross += adj;
         if (adj < g) cappedHoles += 1;
+        if (i < 9) {
+          frontAdj += adj;
+          frontEntered += 1;
+        } else {
+          backAdj += adj;
+          backEntered += 1;
+        }
       }
       const ch = chByPlayer.get(p.id) ?? null;
       const net = entered === 18 && ch != null ? adjGross - ch : null;
-      m.set(p.id, { entered, rawGross, adjGross, cappedHoles, ch, net });
+      m.set(p.id, {
+        entered,
+        rawGross,
+        adjGross,
+        cappedHoles,
+        frontAdj: frontEntered > 0 ? frontAdj : null,
+        backAdj: backEntered > 0 ? backAdj : null,
+        ch,
+        net,
+      });
     }
     return m;
   }, [players, grossByHole, chByPlayer, holes, strokesByHole]);
 
   const sortedPlayers = [...players].sort((a, b) => a.sort_order - b.sort_order);
+
+  // Par totals for the header (front 9 / back 9).
+  const parTotals = useMemo(() => {
+    let front = 0;
+    let back = 0;
+    for (let i = 0; i < 18; i++) {
+      const h = holes.find((x) => x.hole_number === i + 1);
+      const par = h?.par ?? 0;
+      if (i < 9) front += par;
+      else back += par;
+    }
+    return { front, back, total: front + back };
+  }, [holes]);
+
+  // ---- auto-advance focus to next hole ----
+  // After typing a score, advance after a short idle so single-digit scores
+  // jump forward but two-digit scores (10+) still finish typing first.
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusHole = (playerId: string, holeIndex: number) => {
+    if (holeIndex < 0 || holeIndex >= 18) return;
+    const el = document.getElementById(`hole-${playerId}-${holeIndex}`);
+    if (el) (el as HTMLInputElement).focus();
+  };
+  const scheduleAdvance = (playerId: string, fromHoleIndex: number) => {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    advanceTimer.current = setTimeout(() => {
+      focusHole(playerId, fromHoleIndex + 1);
+    }, 650);
+  };
+  const cancelAdvance = () => {
+    if (advanceTimer.current) {
+      clearTimeout(advanceTimer.current);
+      advanceTimer.current = null;
+    }
+  };
 
   // ---- auto-save (debounced) ----
   // Skip the first render so we don't auto-save on mount with no changes.
@@ -516,7 +573,7 @@ export function RoundEntry({
                 >
                   DNP
                 </th>
-                {Array.from({ length: 18 }, (_, i) => (
+                {Array.from({ length: 9 }, (_, i) => (
                   <th
                     key={i}
                     className="px-0.5 py-2 text-center font-semibold border-b border-brand-gold/30"
@@ -525,6 +582,21 @@ export function RoundEntry({
                     {i + 1}
                   </th>
                 ))}
+                <th className="px-2 py-2 text-right border-b border-brand-gold/30 bg-brand-dark/40 text-[10px] uppercase tracking-widest">
+                  Out
+                </th>
+                {Array.from({ length: 9 }, (_, i) => (
+                  <th
+                    key={i + 9}
+                    className="px-0.5 py-2 text-center font-semibold border-b border-brand-gold/30"
+                    style={{ minWidth: 52 }}
+                  >
+                    {i + 10}
+                  </th>
+                ))}
+                <th className="px-2 py-2 text-right border-b border-brand-gold/30 bg-brand-dark/40 text-[10px] uppercase tracking-widest">
+                  In
+                </th>
                 <th className="px-2 py-2 text-right border-b border-brand-gold/30">
                   Total
                 </th>
@@ -540,7 +612,7 @@ export function RoundEntry({
                   Par · SI
                 </th>
                 <th className="px-2 py-1 border-b border-brand-gold/20" />
-                {Array.from({ length: 18 }, (_, i) => {
+                {Array.from({ length: 9 }, (_, i) => {
                   const h = holes.find((x) => x.hole_number === i + 1);
                   return (
                     <th
@@ -556,6 +628,28 @@ export function RoundEntry({
                     </th>
                   );
                 })}
+                <th className="px-2 py-1 text-right border-b border-brand-gold/20 bg-brand-dark/30 tabular-nums text-brand-cream/85">
+                  {parTotals.front || "—"}
+                </th>
+                {Array.from({ length: 9 }, (_, i) => {
+                  const h = holes.find((x) => x.hole_number === i + 10);
+                  return (
+                    <th
+                      key={i + 9}
+                      className="px-0.5 py-1 text-center border-b border-brand-gold/20"
+                    >
+                      <div className="text-brand-cream/85 tabular-nums">
+                        {h ? h.par : "—"}
+                      </div>
+                      <div className="text-brand-gold/60 tabular-nums">
+                        {h ? h.stroke_index : "—"}
+                      </div>
+                    </th>
+                  );
+                })}
+                <th className="px-2 py-1 text-right border-b border-brand-gold/20 bg-brand-dark/30 tabular-nums text-brand-cream/85">
+                  {parTotals.back || "—"}
+                </th>
                 <th className="px-2 py-1 border-b border-brand-gold/20" />
                 <th className="px-2 py-1 border-b border-brand-gold/20" />
                 <th className="px-2 py-1 border-b border-brand-gold/20" />
@@ -594,44 +688,75 @@ export function RoundEntry({
                         className="h-4 w-4 accent-brand-gold"
                       />
                     </td>
-                    {arr.map((v, i) => {
-                      const s = strokesArr[i] ?? 0;
+                    {(() => {
+                      const renderHoleCell = (i: number) => {
+                        const v = arr[i];
+                        const s = strokesArr[i] ?? 0;
+                        return (
+                          <td
+                            key={i}
+                            className="px-0.5 py-1 border-b border-brand-gold/10 text-center"
+                          >
+                            <input
+                              id={`hole-${p.id}-${i}`}
+                              type="number"
+                              inputMode="numeric"
+                              min={1}
+                              disabled={dnp}
+                              className="w-12 h-11 rounded-md border border-brand-gold/30 bg-brand-dark/70 text-center text-brand-cream focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-brand-gold disabled:opacity-50"
+                              value={dnp ? "" : v == null ? "" : String(v)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  cancelAdvance();
+                                  focusHole(p.id, i + 1);
+                                }
+                              }}
+                              onChange={(e) => {
+                                const next = [...arr];
+                                const raw = e.target.value;
+                                let isValid = false;
+                                if (raw === "") {
+                                  next[i] = null;
+                                } else {
+                                  const n = Number(raw);
+                                  if (Number.isFinite(n) && n > 0) {
+                                    next[i] = Math.trunc(n);
+                                    isValid = true;
+                                  } else {
+                                    next[i] = null;
+                                  }
+                                }
+                                setGrossByHole((prev) => ({
+                                  ...prev,
+                                  [p.id]: next,
+                                }));
+                                if (isValid) scheduleAdvance(p.id, i);
+                                else cancelAdvance();
+                              }}
+                              onBlur={cancelAdvance}
+                            />
+                            <div className="text-[10px] text-brand-gold/70 leading-tight h-3">
+                              {s > 0 ? "●".repeat(Math.min(s, 3)) : ""}
+                            </div>
+                          </td>
+                        );
+                      };
                       return (
-                        <td
-                          key={i}
-                          className="px-0.5 py-1 border-b border-brand-gold/10 text-center"
-                        >
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            min={1}
-                            disabled={dnp}
-                            className="w-12 h-11 rounded-md border border-brand-gold/30 bg-brand-dark/70 text-center text-brand-cream focus:outline-none focus:ring-2 focus:ring-brand-gold focus:border-brand-gold disabled:opacity-50"
-                            value={dnp ? "" : v == null ? "" : String(v)}
-                            onChange={(e) => {
-                              const next = [...arr];
-                              const raw = e.target.value;
-                              if (raw === "") {
-                                next[i] = null;
-                              } else {
-                                const n = Number(raw);
-                                next[i] =
-                                  Number.isFinite(n) && n > 0
-                                    ? Math.trunc(n)
-                                    : null;
-                              }
-                              setGrossByHole((prev) => ({
-                                ...prev,
-                                [p.id]: next,
-                              }));
-                            }}
-                          />
-                          <div className="text-[10px] text-brand-gold/70 leading-tight h-3">
-                            {s > 0 ? "●".repeat(Math.min(s, 3)) : ""}
-                          </div>
-                        </td>
+                        <>
+                          {Array.from({ length: 9 }, (_, i) => renderHoleCell(i))}
+                          <td className="px-2 py-1 text-right tabular-nums border-b border-brand-gold/10 bg-brand-dark/30 font-semibold">
+                            {dnp ? "—" : (summary?.frontAdj ?? "—")}
+                          </td>
+                          {Array.from({ length: 9 }, (_, i) =>
+                            renderHoleCell(i + 9),
+                          )}
+                          <td className="px-2 py-1 text-right tabular-nums border-b border-brand-gold/10 bg-brand-dark/30 font-semibold">
+                            {dnp ? "—" : (summary?.backAdj ?? "—")}
+                          </td>
+                        </>
                       );
-                    })}
+                    })()}
                     <td className="px-2 py-1 text-right tabular-nums border-b border-brand-gold/10">
                       {dnp ? (
                         <span className="text-brand-cream/40 italic">DNP</span>
