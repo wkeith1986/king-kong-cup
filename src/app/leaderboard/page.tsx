@@ -31,6 +31,15 @@ export default async function LeaderboardPage() {
           accordingly).
         </p>
         <p className="text-xs text-brand-cream/55 mt-2">
+          Standings are ranked by{" "}
+          <span className="text-brand-gold/85">projected pace</span> (the{" "}
+          <span className="text-brand-cream/85">Proj</span> column), not the
+          running total — otherwise a player who has simply played fewer rounds
+          would post a lower <span className="text-brand-cream/85">Best 4</span>{" "}
+          and falsely sit on top. Once everyone has finished, the projection
+          equals the real Best 4, so the final order is the true result.
+        </p>
+        <p className="text-xs text-brand-cream/55 mt-2">
           <span className="text-brand-gold/85">Proj</span> = projected final
           Best 4 if the player&rsquo;s current pace (avg net) holds for the
           rounds they have left. Watch the gap between{" "}

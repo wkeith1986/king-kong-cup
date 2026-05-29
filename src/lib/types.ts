@@ -109,5 +109,5 @@ export type LeaderboardRow = {
   dnpRounds: number; // count of DNP-marked rounds
   maxRounds: number; // 5 minus the player's DNP count — their ceiling
   avgNet: number | null; // mean net across played rounds
-  projectedBestFour: number | null; // avg × min(maxRounds, 4)
+  projectedBestFour: number | null; // best 4 of (played nets + remaining rounds at avg pace); standings sort key
 };

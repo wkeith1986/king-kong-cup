@@ -157,24 +157,35 @@ export function computeLeaderboard(
       ? playedRounds.reduce((s, r) => s + (r.net as number), 0)
       : null;
 
-    // Projection. A player who has DNP'd round(s) caps below 5 rounds.
-    // Their projected final Best 4 = average net × min(maxRounds, 4),
-    // because:
-    //   - If maxRounds <= 4, all of them count toward Best 4 (no drop).
-    //   - If maxRounds == 5, they get to drop their worst, so if remaining
-    //     rounds project at the same pace as played ones, the sum of 4 ≈
-    //     avg × 4 regardless of which one drops.
-    // Bottom line: projection collapses to avg × min(maxRounds, 4).
+    // Projection = the player's likely *final* Best 4 if their current pace
+    // (avg net) holds for the rounds they have left. We take their actual
+    // played nets, add the rounds they still have at that average, then apply
+    // the same Best-4-of-up-to-5 drop.
+    //
+    // Two important properties:
+    //   - When a player is finished (no rounds remaining), this equals their
+    //     real Best 4 exactly — so ranking by projection doesn't distort the
+    //     final standings.
+    //   - Mid-trip it normalizes for rounds played, so a player who has simply
+    //     played fewer rounds can't post a falsely-low running total and leap
+    //     to the top. The standings are sorted by this number; the running
+    //     Best-4 total is still shown in its own column.
     const dnpRounds = perRound.filter((r) => r.isDNP).length;
     const maxRounds = Math.max(0, sortedRounds.length - dnpRounds);
     const avgNet =
-      playedRounds.length > 0
-        ? totalNet! / playedRounds.length
-        : null;
-    const projectedBestFour =
-      avgNet != null && maxRounds > 0
-        ? Math.round(avgNet * Math.min(maxRounds, 4))
-        : null;
+      playedRounds.length > 0 ? totalNet! / playedRounds.length : null;
+    const remainingRounds = Math.max(0, maxRounds - playedRounds.length);
+    let projectedBestFour: number | null = null;
+    if (avgNet != null && maxRounds > 0) {
+      const projectedNets = playedRounds.map((r) => r.net as number);
+      for (let i = 0; i < remainingRounds; i++) projectedNets.push(avgNet);
+      projectedNets.sort((a, b) => a - b);
+      projectedBestFour = Math.round(
+        projectedNets
+          .slice(0, Math.min(4, projectedNets.length))
+          .reduce((sum, v) => sum + v, 0),
+      );
+    }
 
     return {
       player,
@@ -191,25 +202,29 @@ export function computeLeaderboard(
 
   const current = players.map((p) => buildRow(p, scores));
 
-  // Sort by bestFourNet ascending; nulls (no rounds yet) sink to the bottom.
+  // Rank by projected final Best 4 (pace) ascending; nulls (no rounds yet)
+  // sink to the bottom. Ranking by projection rather than the raw running
+  // Best-4 total keeps a player who has played fewer rounds from showing a
+  // falsely-low total and leaping to the top. Once everyone is finished the
+  // projection equals the real Best 4, so the final order is correct.
   current.sort((a, b) => {
-    if (a.bestFourNet == null && b.bestFourNet == null) return 0;
-    if (a.bestFourNet == null) return 1;
-    if (b.bestFourNet == null) return -1;
-    return a.bestFourNet - b.bestFourNet;
+    if (a.projectedBestFour == null && b.projectedBestFour == null) return 0;
+    if (a.projectedBestFour == null) return 1;
+    if (b.projectedBestFour == null) return -1;
+    return a.projectedBestFour - b.projectedBestFour;
   });
 
-  // Assign positions with tie-sharing: players with identical Best-4-Net
+  // Assign positions with tie-sharing: players with the same projected Best 4
   // share the same position number; the next finisher skips ahead by the
   // size of the tie group. (Standard golf tie ranking.)
   const withPosition: LeaderboardRow[] = [];
   let i = 0;
   while (i < current.length) {
     let j = i;
-    const score = current[i].bestFourNet;
+    const score = current[i].projectedBestFour;
     while (
       j < current.length &&
-      current[j].bestFourNet === score &&
+      current[j].projectedBestFour === score &&
       score != null
     ) {
       j += 1;
@@ -235,10 +250,10 @@ export function computeLeaderboard(
   if (previousScores && previousScores.length) {
     const prev = players.map((p) => buildRow(p, previousScores));
     prev.sort((a, b) => {
-      if (a.bestFourNet == null && b.bestFourNet == null) return 0;
-      if (a.bestFourNet == null) return 1;
-      if (b.bestFourNet == null) return -1;
-      return a.bestFourNet - b.bestFourNet;
+      if (a.projectedBestFour == null && b.projectedBestFour == null) return 0;
+      if (a.projectedBestFour == null) return 1;
+      if (b.projectedBestFour == null) return -1;
+      return a.projectedBestFour - b.projectedBestFour;
     });
     // Tie-sharing for previous positions too, so swapping within a tied
     // group doesn't show false movement.
@@ -246,10 +261,10 @@ export function computeLeaderboard(
     let pi = 0;
     while (pi < prev.length) {
       let pj = pi;
-      const score = prev[pi].bestFourNet;
+      const score = prev[pi].projectedBestFour;
       while (
         pj < prev.length &&
-        prev[pj].bestFourNet === score &&
+        prev[pj].projectedBestFour === score &&
         score != null
       ) {
         pj += 1;
