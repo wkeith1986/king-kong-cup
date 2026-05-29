@@ -41,11 +41,18 @@ export default async function LeaderboardPage() {
         </p>
         <p className="text-xs text-brand-cream/55 mt-2">
           <span className="text-brand-gold/85">Proj</span> = projected final
-          Best 4 if the player&rsquo;s current pace (avg net) holds for the
-          rounds they have left. Watch the gap between{" "}
+          Best 4, built in three steps: (1) take the net scores already posted,
+          (2) pencil in each round not yet played at the player&rsquo;s current
+          average net, then (3) run that full set through the same{" "}
+          <span className="text-brand-cream/85">Best 4 of 5</span> rule — the
+          single worst of the five is dropped. A player with a DNP has fewer
+          than 5 rounds, so every round counts and there&rsquo;s nothing extra
+          to drop. Because step 2 adds nothing once a player is finished, a
+          completed player&rsquo;s <span className="text-brand-cream/85">Proj</span>{" "}
+          is exactly their real Best 4. Watch the gap between{" "}
           <span className="text-brand-cream/85">Best 4</span> and{" "}
-          <span className="text-brand-cream/85">Proj</span> — that&rsquo;s
-          how much room there is for the standings to move.
+          <span className="text-brand-cream/85">Proj</span> — that&rsquo;s how
+          much room there is for the standings to move.
         </p>
         <p className="text-xs text-brand-cream/55 mt-2">
           <span className="text-brand-gold/85">To Lead</span> = the net average
