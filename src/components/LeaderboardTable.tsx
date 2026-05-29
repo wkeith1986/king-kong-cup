@@ -89,6 +89,12 @@ export function LeaderboardTable({
                 ))}
                 <th className="px-3 py-3 text-right">Total Net</th>
                 <th className="px-3 py-3 text-right">Best 4</th>
+                <th
+                  className="px-3 py-3 text-right"
+                  title="Projected Best 4 if average pace holds for remaining rounds"
+                >
+                  Proj
+                </th>
                 <th className="px-3 py-3 text-center">±</th>
               </tr>
             </thead>
@@ -114,6 +120,14 @@ export function LeaderboardTable({
                     </td>
                     <td className="px-3 py-3">
                       <div className="font-semibold">{row.player.name}</div>
+                      <div className="text-[10px] text-brand-cream/50 mt-0.5">
+                        {row.roundsPlayed}/{row.maxRounds} played
+                        {row.maxRounds < 5 && (
+                          <span className="ml-1 text-brand-gold/70">
+                            · max {row.maxRounds}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-3 text-brand-cream/85 whitespace-nowrap">
                       <span
@@ -174,6 +188,16 @@ export function LeaderboardTable({
                     </td>
                     <td className="px-3 py-3 text-right font-bold">
                       {row.bestFourNet ?? "—"}
+                    </td>
+                    <td
+                      className="px-3 py-3 text-right tabular-nums text-brand-cream/70 italic"
+                      title={
+                        row.avgNet != null
+                          ? `Avg net ${row.avgNet.toFixed(1)} × ${Math.min(row.maxRounds, 4)} counted rounds`
+                          : "Needs at least one played round"
+                      }
+                    >
+                      {row.projectedBestFour ?? "—"}
                     </td>
                     <td className="px-3 py-3 text-center">
                       <Movement value={row.movement} />
@@ -236,6 +260,14 @@ function MobileCard({
                   </span>
                 )}
             </div>
+            <div className="text-[10px] text-brand-cream/50 mt-0.5">
+              {row.roundsPlayed}/{row.maxRounds} played
+              {row.maxRounds < 5 && (
+                <span className="ml-1 text-brand-gold/70">
+                  · max {row.maxRounds}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="text-right">
@@ -245,6 +277,14 @@ function MobileCard({
           <div className="text-2xl font-bold tabular-nums">
             {row.bestFourNet ?? "—"}
           </div>
+          {row.projectedBestFour != null && (
+            <div
+              className="text-[10px] italic text-brand-cream/55 tabular-nums"
+              title="Projected final Best 4 if average pace holds"
+            >
+              proj {row.projectedBestFour}
+            </div>
+          )}
           <Movement value={row.movement} />
         </div>
       </div>

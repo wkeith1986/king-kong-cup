@@ -157,7 +157,36 @@ export function computeLeaderboard(
       ? playedRounds.reduce((s, r) => s + (r.net as number), 0)
       : null;
 
-    return { player, perRound, totalNet, bestFourNet };
+    // Projection. A player who has DNP'd round(s) caps below 5 rounds.
+    // Their projected final Best 4 = average net × min(maxRounds, 4),
+    // because:
+    //   - If maxRounds <= 4, all of them count toward Best 4 (no drop).
+    //   - If maxRounds == 5, they get to drop their worst, so if remaining
+    //     rounds project at the same pace as played ones, the sum of 4 ≈
+    //     avg × 4 regardless of which one drops.
+    // Bottom line: projection collapses to avg × min(maxRounds, 4).
+    const dnpRounds = perRound.filter((r) => r.isDNP).length;
+    const maxRounds = Math.max(0, sortedRounds.length - dnpRounds);
+    const avgNet =
+      playedRounds.length > 0
+        ? totalNet! / playedRounds.length
+        : null;
+    const projectedBestFour =
+      avgNet != null && maxRounds > 0
+        ? Math.round(avgNet * Math.min(maxRounds, 4))
+        : null;
+
+    return {
+      player,
+      perRound,
+      totalNet,
+      bestFourNet,
+      roundsPlayed: playedRounds.length,
+      dnpRounds,
+      maxRounds,
+      avgNet: avgNet != null ? Math.round(avgNet * 10) / 10 : null,
+      projectedBestFour,
+    };
   };
 
   const current = players.map((p) => buildRow(p, scores));

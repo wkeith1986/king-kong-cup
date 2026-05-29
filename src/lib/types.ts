@@ -104,4 +104,10 @@ export type LeaderboardRow = {
   position: number;
   isTied: boolean;
   movement: number; // positions gained since previous round (positive = moved up)
+  // Projection metadata
+  roundsPlayed: number; // count of played rounds (DNP excluded)
+  dnpRounds: number; // count of DNP-marked rounds
+  maxRounds: number; // 5 minus the player's DNP count — their ceiling
+  avgNet: number | null; // mean net across played rounds
+  projectedBestFour: number | null; // avg × min(maxRounds, 4)
 };

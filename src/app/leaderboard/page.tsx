@@ -26,7 +26,17 @@ export default async function LeaderboardPage() {
           King Kong Cup Standings
         </h1>
         <p className="text-sm text-brand-cream/70 mt-1">
-          Best 4 of 5 net scores. Lowest total wins.
+          Best 4 of 5 net scores. Lowest total wins. A DNP-marked round
+          counts as that player&rsquo;s automatic drop (max rounds shrinks
+          accordingly).
+        </p>
+        <p className="text-xs text-brand-cream/55 mt-2">
+          <span className="text-brand-gold/85">Proj</span> = projected final
+          Best 4 if the player&rsquo;s current pace (avg net) holds for the
+          rounds they have left. Watch the gap between{" "}
+          <span className="text-brand-cream/85">Best 4</span> and{" "}
+          <span className="text-brand-cream/85">Proj</span> — that&rsquo;s
+          how much room there is for the standings to move.
         </p>
       </header>
       <LeaderboardTable rows={board} rounds={rounds} />
