@@ -38,6 +38,13 @@ export default async function LeaderboardPage() {
           <span className="text-brand-cream/85">Proj</span> — that&rsquo;s
           how much room there is for the standings to move.
         </p>
+        <p className="text-xs text-brand-cream/55 mt-2">
+          <span className="text-brand-gold/85">To Lead</span> = the net average
+          a player must hold over their remaining rounds to reach the current
+          leader&rsquo;s projected Best 4 (assuming the leader stays on pace).{" "}
+          <span className="text-emerald-300/85">ahead</span> means they&rsquo;re
+          already projected to be there.
+        </p>
       </header>
       <LeaderboardTable rows={board} rounds={rounds} />
     </div>

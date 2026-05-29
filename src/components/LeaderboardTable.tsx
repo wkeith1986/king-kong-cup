@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { LeaderboardRow, Round } from "@/lib/types";
 import { fmtIndex, ordinal } from "@/lib/format";
+import { requiredNetPerRound } from "@/lib/scoring";
 
 type SortKey = "position" | "name" | "index";
 
@@ -29,6 +30,17 @@ export function LeaderboardTable({
 
   const completedRounds = rounds.filter((r) => r.status === "complete").length;
   const roundsList = [...rounds].sort((a, b) => a.round_number - b.round_number);
+
+  // The "current leader spot" we measure everyone against = the leader's
+  // projected final Best 4 (i.e. assuming the leader holds their current pace).
+  // If two players share the lead, use the tougher (lower) projection.
+  const leaderTarget = useMemo(() => {
+    const projs = rows
+      .filter((r) => r.position === 1 && r.bestFourNet != null)
+      .map((r) => r.projectedBestFour)
+      .filter((p): p is number => p != null);
+    return projs.length ? Math.min(...projs) : null;
+  }, [rows]);
 
   return (
     <div>
@@ -66,6 +78,7 @@ export function LeaderboardTable({
             row={row}
             rounds={roundsList}
             showAdjustedIndex={showAdjustedIndex}
+            leaderTarget={leaderTarget}
           />
         ))}
       </div>
@@ -94,6 +107,12 @@ export function LeaderboardTable({
                   title="Projected Best 4 if average pace holds for remaining rounds"
                 >
                   Proj
+                </th>
+                <th
+                  className="px-3 py-3 text-right"
+                  title="Net average a player must hold over their remaining rounds to reach the current leader's projected Best 4"
+                >
+                  To Lead
                 </th>
                 <th className="px-3 py-3 text-center">±</th>
               </tr>
@@ -199,6 +218,9 @@ export function LeaderboardTable({
                     >
                       {row.projectedBestFour ?? "—"}
                     </td>
+                    <td className="px-3 py-3 text-right">
+                      <ToLead row={row} leaderTarget={leaderTarget} />
+                    </td>
                     <td className="px-3 py-3 text-center">
                       <Movement value={row.movement} />
                     </td>
@@ -217,10 +239,12 @@ function MobileCard({
   row,
   rounds,
   showAdjustedIndex,
+  leaderTarget,
 }: {
   row: LeaderboardRow;
   rounds: Round[];
   showAdjustedIndex: boolean;
+  leaderTarget: number | null;
 }) {
   const isLeader = row.position === 1 && row.bestFourNet != null;
   return (
@@ -285,6 +309,12 @@ function MobileCard({
               proj {row.projectedBestFour}
             </div>
           )}
+          <div className="text-[10px] text-brand-cream/55 tabular-nums mt-0.5">
+            <span className="text-brand-cream/40 uppercase tracking-wider mr-1">
+              lead
+            </span>
+            <ToLead row={row} leaderTarget={leaderTarget} />
+          </div>
           <Movement value={row.movement} />
         </div>
       </div>
@@ -320,6 +350,68 @@ function MobileCard({
         ))}
       </div>
     </div>
+  );
+}
+
+function ToLead({
+  row,
+  leaderTarget,
+}: {
+  row: LeaderboardRow;
+  leaderTarget: number | null;
+}) {
+  const isLeader = row.position === 1 && row.bestFourNet != null;
+  if (isLeader)
+    return (
+      <span className="text-brand-gold/90 text-xs font-semibold">Leads</span>
+    );
+  if (leaderTarget == null)
+    return <span className="text-brand-cream/30">—</span>;
+
+  const remaining = row.maxRounds - row.roundsPlayed;
+  if (remaining <= 0)
+    return (
+      <span className="text-brand-cream/30" title="No rounds left to gain ground">
+        —
+      </span>
+    );
+
+  const playedNets = row.perRound
+    .filter((p) => p.played)
+    .map((p) => p.net as number);
+  const v = requiredNetPerRound(playedNets, remaining, leaderTarget);
+
+  if (v == null) return <span className="text-brand-cream/30">—</span>;
+  if (v === Number.POSITIVE_INFINITY)
+    return (
+      <span
+        className="text-emerald-300 text-xs font-semibold"
+        title="Already projected at or ahead of the leader's pace"
+      >
+        ahead
+      </span>
+    );
+  if (!Number.isFinite(v))
+    return (
+      <span
+        className="text-rose-300/70 text-xs"
+        title="Out of reach even with a flawless finish"
+      >
+        out
+      </span>
+    );
+
+  const n = Math.floor(v + 1e-6);
+  return (
+    <span
+      className="tabular-nums"
+      title={`Average net ≤ ${n} over ${remaining} remaining round${
+        remaining > 1 ? "s" : ""
+      } to reach the leader's projected Best 4 of ${leaderTarget}`}
+    >
+      ≤{n}
+      <span className="text-brand-cream/40 text-[10px] ml-0.5">net/rd</span>
+    </span>
   );
 }
 

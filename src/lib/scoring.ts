@@ -270,6 +270,58 @@ export function computeLeaderboard(
 }
 
 /**
+ * Given a player's already-played net scores and the number of rounds they
+ * have left, return the highest *constant net-per-remaining-round* that still
+ * lands their final Best-4-Net at or below `target`.
+ *
+ * This mirrors the Best-4-of-up-to-5 drop used everywhere else: with 5 total
+ * rounds the single worst net is dropped; with 4 or fewer every round counts.
+ *
+ * Return values:
+ *   - `null`                         → no rounds remaining (nothing to compute)
+ *   - `Number.POSITIVE_INFINITY`     → already locked at/under target no matter
+ *                                      how badly the remaining rounds go
+ *   - `Number.NEGATIVE_INFINITY`     → unreachable even with a flawless finish
+ *   - finite number                  → the net average they must hold (or beat)
+ *
+ * The search is monotonic: lower net-per-round can only lower the Best-4-Net,
+ * so a simple bisection finds the breakpoint.
+ */
+export function requiredNetPerRound(
+  playedNets: number[],
+  remaining: number,
+  target: number,
+): number | null {
+  if (remaining <= 0) return null;
+
+  const bestFourWith = (x: number): number => {
+    const all = [...playedNets];
+    for (let i = 0; i < remaining; i++) all.push(x);
+    all.sort((a, b) => a - b);
+    return all
+      .slice(0, Math.min(4, all.length))
+      .reduce((sum, v) => sum + v, 0);
+  };
+
+  const LOW = -50; // a flawless, unrealistically good net
+  const HIGH = 130; // a blow-up round
+
+  // Even a disaster still keeps them at/under target → they can't fall out.
+  if (bestFourWith(HIGH) <= target) return Number.POSITIVE_INFINITY;
+  // Even a perfect finish can't get them there → mathematically out.
+  if (bestFourWith(LOW) > target) return Number.NEGATIVE_INFINITY;
+
+  let lo = LOW;
+  let hi = HIGH;
+  for (let k = 0; k < 50; k++) {
+    const mid = (lo + hi) / 2;
+    if (bestFourWith(mid) <= target) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
  * For a single round, compute every player's gross / course handicap /
  * net / differential given the tee and current indexes.
  */
